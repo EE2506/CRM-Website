@@ -176,3 +176,4 @@ lerna-debug.log*
 # Agent specific
 .agent/
 .gemini/
+PRD.md
