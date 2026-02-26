@@ -132,3 +132,37 @@ def assign_ticket(id):
     db.session.commit()
     
     return jsonify({"success": True, "message": "Ticket assigned successfully"}), 200
+
+@tickets_bp.route('/<int:id>', methods=['PUT'])
+@require_permission('tickets.manage')
+def update_ticket(id):
+    ticket = Ticket.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
+    data = request.get_json()
+    
+    if data.get('subject'):
+        ticket.subject = data['subject']
+    if data.get('description') is not None:
+        ticket.description = data['description']
+    if data.get('status'):
+        ticket.status = data['status']
+        if ticket.status == 'resolved':
+            ticket.resolved_at = datetime.datetime.utcnow()
+    if data.get('priority'):
+        ticket.priority = data['priority']
+    if data.get('type'):
+        ticket.type = data['type']
+    if data.get('assignee_id') is not None:
+        ticket.assignee_id = data['assignee_id'] or None
+        
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Ticket updated successfully"}), 200
+
+@tickets_bp.route('/<int:id>', methods=['DELETE'])
+@require_permission('tickets.manage')
+def delete_ticket(id):
+    ticket = Ticket.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
+    db.session.delete(ticket)
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Ticket deleted successfully"}), 200

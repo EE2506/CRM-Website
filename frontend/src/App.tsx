@@ -12,6 +12,7 @@ import Tickets from './pages/Tickets'
 import Team from './pages/Team'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
+import NewTransaction from './pages/NewTransaction'
 import Layout from '@/components/layout/Layout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,7 @@ function App() {
           <Route path="/team" element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+          <Route path="/new-transaction" element={<ProtectedRoute><Layout><NewTransaction /></Layout></ProtectedRoute>} />
         </Routes>
       </Router>
       <Toaster richColors position="top-right" />

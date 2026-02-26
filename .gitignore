@@ -178,3 +178,4 @@ lerna-debug.log*
 .gemini/
 PRD.md
 sme-dashboard-agent-prompt.md
+chat-gantt-prompt.md

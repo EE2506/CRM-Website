@@ -146,7 +146,7 @@ export default function Dashboard() {
                     <Button variant="outline" size="sm" className="gap-2 hidden md:flex">
                         Download Report <ArrowUpRight className="w-4 h-4" />
                     </Button>
-                    <Button size="sm">New Transaction</Button>
+                    <Button size="sm" onClick={() => navigate('/new-transaction')}>New Transaction</Button>
                 </div>
             </div>
 
@@ -406,7 +406,7 @@ export default function Dashboard() {
                 <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Quick Actions</h3>
                 <div className="flex flex-wrap gap-2">
                     {[
-                        { label: "New Sale", color: "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20", action: () => { } },
+                        { label: "New Sale", color: "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20", action: () => navigate('/new-transaction') },
                         { label: "Add Contact", color: "bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20", action: () => navigate('/contacts') },
                         { label: "Log Inventory", color: "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20", action: () => navigate('/inventory') },
                         { label: "Create Lead", color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20 hover:bg-indigo-500/20", action: () => navigate('/deals') },
