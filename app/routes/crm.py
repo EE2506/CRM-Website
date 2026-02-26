@@ -346,6 +346,29 @@ def create_deal():
         "data": {"id": deal.id}
     }), 201
 
+@crm_bp.route('/deals/<int:id>', methods=['PUT'])
+@require_permission('crm.deals.edit', 'deals.manage')
+def update_deal(id):
+    deal = Deal.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
+    data = request.get_json()
+    
+    if 'name' in data: deal.name = data['name']
+    if 'value' in data: deal.value = data['value']
+    if 'stage' in data: deal.stage = data['stage']
+    if 'probability' in data: deal.probability = data['probability']
+    if 'contact_id' in data: deal.contact_id = data['contact_id']
+    
+    db.session.commit()
+    return jsonify({"success": True, "message": "Deal updated successfully"}), 200
+
+@crm_bp.route('/deals/<int:id>', methods=['DELETE'])
+@require_permission('crm.deals.delete', 'deals.manage')
+def delete_deal(id):
+    deal = Deal.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
+    db.session.delete(deal)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Deal deleted successfully"}), 200
+
 # --- Activity Routes ---
 
 @crm_bp.route('/contacts/<int:id>/activities', methods=['POST'])

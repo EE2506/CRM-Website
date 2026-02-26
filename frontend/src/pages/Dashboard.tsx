@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom"
 import { useAuthStore } from "@/store/authStore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -54,6 +55,7 @@ interface AdvancedDashboardData {
 
 export default function Dashboard() {
     const { user } = useAuthStore()
+    const navigate = useNavigate()
 
     const { data, isLoading, error } = useQuery<DashboardData>({
         queryKey: ['dashboard-data'],
@@ -146,6 +148,30 @@ export default function Dashboard() {
                     </Button>
                     <Button size="sm">New Transaction</Button>
                 </div>
+            </div>
+
+            {/* Alerts Bar */}
+            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                {advData && advData.inventory.low_stock_alerts.length > 0 && (
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        🟡 {advData.inventory.low_stock_alerts[0]?.name} — {advData.inventory.low_stock_alerts[0]?.stock} units left
+                    </span>
+                )}
+                {data && data.kpis.high_priority_tickets > 0 && (
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap bg-red-500/10 text-red-500 border border-red-500/20">
+                        🔴 {data.kpis.high_priority_tickets} tickets high priority
+                    </span>
+                )}
+                {data && data.kpis.active_leads > 0 && (
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                        🔵 {data.kpis.active_leads} leads need follow-up
+                    </span>
+                )}
+                {advData && isClockedIn && (
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap bg-violet-500/10 text-violet-500 border border-violet-500/20">
+                        🟣 Shift active — you are clocked in
+                    </span>
+                )}
             </div>
 
             {/* KPI Cards */}
@@ -374,6 +400,31 @@ export default function Dashboard() {
                     </div>
                 </div>
             )}
+
+            {/* Quick Actions Bar */}
+            <div className="mt-4">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Quick Actions</h3>
+                <div className="flex flex-wrap gap-2">
+                    {[
+                        { label: "New Sale", color: "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20", action: () => { } },
+                        { label: "Add Contact", color: "bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20", action: () => navigate('/contacts') },
+                        { label: "Log Inventory", color: "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20", action: () => navigate('/inventory') },
+                        { label: "Create Lead", color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20 hover:bg-indigo-500/20", action: () => navigate('/deals') },
+                        { label: "Open Ticket", color: "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20", action: () => navigate('/tickets') },
+                        { label: "Send Follow-up", color: "bg-violet-500/10 text-violet-500 border-violet-500/20 hover:bg-violet-500/20", action: () => navigate('/contacts') },
+                        { label: "Team", color: "bg-teal-500/10 text-teal-500 border-teal-500/20 hover:bg-teal-500/20", action: () => navigate('/team') },
+                        { label: "Settings", color: "bg-slate-500/10 text-slate-400 border-slate-500/20 hover:bg-slate-500/20", action: () => navigate('/settings') },
+                    ].map((qa) => (
+                        <button
+                            key={qa.label}
+                            onClick={qa.action}
+                            className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors ${qa.color}`}
+                        >
+                            {qa.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
         </div>
     )
 }

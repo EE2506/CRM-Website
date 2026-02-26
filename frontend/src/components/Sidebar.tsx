@@ -69,20 +69,23 @@ export function Sidebar() {
 
             {/* Bottom Section */}
             <div className="p-4 border-t space-y-4">
-                <div className={cn(
-                    "flex items-center gap-3",
-                    isCollapsed ? "justify-center" : "px-2"
-                )}>
-                    <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold shrink-0">
+                <button
+                    onClick={() => navigate("/profile")}
+                    className={cn(
+                        "flex items-center gap-3 w-full rounded-lg p-2 hover:bg-primary/10 transition-colors cursor-pointer",
+                        isCollapsed ? "justify-center" : ""
+                    )}
+                >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
                         {user?.first_name?.[0]}{user?.last_name?.[0]}
                     </div>
                     {!isCollapsed && (
-                        <div className="flex flex-col min-w-0">
+                        <div className="flex flex-col min-w-0 text-left">
                             <span className="text-sm font-medium truncate">{user?.first_name}</span>
                             <span className="text-[10px] text-muted-foreground uppercase tracking-tight">{user?.role}</span>
                         </div>
                     )}
-                </div>
+                </button>
 
                 <div className="flex flex-col gap-1">
                     <Button

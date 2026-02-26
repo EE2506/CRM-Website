@@ -1,9 +1,24 @@
 import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import api from "@/services/api"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
 import {
     Search,
     UserPlus,
@@ -27,6 +42,10 @@ interface Contact {
 export default function Contacts() {
     const [searchTerm, setSearchTerm] = useState("")
     const [filterType, setFilterType] = useState<string>("all")
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [editingContact, setEditingContact] = useState<Contact | null>(null)
+    const [formData, setFormData] = useState({ first_name: '', last_name: '', email: '', phone: '', type: 'lead' })
+    const queryClient = useQueryClient()
 
     const { data, isLoading } = useQuery<{ data: Contact[] }>({
         queryKey: ['contacts', filterType],
@@ -41,6 +60,48 @@ export default function Contacts() {
         `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.email?.toLowerCase().includes(searchTerm.toLowerCase())
     )
+
+    const saveMutation = useMutation({
+        mutationFn: async () => {
+            if (editingContact) {
+                return await api.put(`/crm/contacts/${editingContact.id}`, formData)
+            } else {
+                return await api.post('/crm/contacts', formData)
+            }
+        },
+        onSuccess: () => {
+            toast.success(`Contact ${editingContact ? 'updated' : 'created'} successfully!`)
+            queryClient.invalidateQueries({ queryKey: ['contacts'] })
+            setIsDialogOpen(false)
+        },
+        onError: () => toast.error('Failed to save contact')
+    })
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: number) => await api.delete(`/crm/contacts/${id}`),
+        onSuccess: () => {
+            toast.success('Contact deleted successfully!')
+            queryClient.invalidateQueries({ queryKey: ['contacts'] })
+        },
+        onError: () => toast.error('Failed to delete contact')
+    })
+
+    const handleOpenDialog = (contact?: Contact) => {
+        if (contact) {
+            setEditingContact(contact)
+            setFormData({
+                first_name: contact.first_name,
+                last_name: contact.last_name,
+                email: contact.email || '',
+                phone: contact.phone || '',
+                type: contact.type
+            })
+        } else {
+            setEditingContact(null)
+            setFormData({ first_name: '', last_name: '', email: '', phone: '', type: 'lead' })
+        }
+        setIsDialogOpen(true)
+    }
 
     const getTypeColor = (type: string) => {
         switch (type) {
@@ -62,7 +123,7 @@ export default function Contacts() {
                     <Button variant="outline" size="sm" className="gap-2">
                         <Download className="w-4 h-4" /> Export
                     </Button>
-                    <Button size="sm" className="gap-2">
+                    <Button size="sm" className="gap-2" onClick={() => handleOpenDialog()}>
                         <UserPlus className="w-4 h-4" /> Add Contact
                     </Button>
                 </div>
@@ -147,9 +208,25 @@ export default function Contacts() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => handleOpenDialog(contact)}>
+                                                    Edit Contact
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem className="text-destructive focus:bg-destructive focus:text-destructive-foreground" onClick={() => {
+                                                    if (confirm('Are you sure you want to delete this contact?')) {
+                                                        deleteMutation.mutate(contact.id)
+                                                    }
+                                                }}>
+                                                    Delete Contact
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </td>
                                 </tr>
                             ))}
@@ -166,6 +243,74 @@ export default function Contacts() {
                     )}
                 </div>
             </Card>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingContact ? 'Edit Contact' : 'New Contact'}</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="first_name">First Name <span className="text-destructive">*</span></Label>
+                                <Input
+                                    id="first_name"
+                                    value={formData.first_name}
+                                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="last_name">Last Name <span className="text-destructive">*</span></Label>
+                                <Input
+                                    id="last_name"
+                                    value={formData.last_name}
+                                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email Address</Label>
+                            <Input
+                                id="email"
+                                type="email"
+                                value={formData.email}
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="phone">Phone Number</Label>
+                            <Input
+                                id="phone"
+                                value={formData.phone}
+                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Contact Type</Label>
+                            <div className="flex gap-2">
+                                {['lead', 'prospect', 'customer'].map(t => (
+                                    <Button
+                                        key={t}
+                                        type="button"
+                                        variant={formData.type === t ? "default" : "outline"}
+                                        size="sm"
+                                        className="flex-1 capitalize"
+                                        onClick={() => setFormData({ ...formData, type: t })}
+                                    >
+                                        {t}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !formData.first_name || !formData.last_name}>
+                            {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
