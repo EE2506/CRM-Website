@@ -1,7 +1,6 @@
 from . import db, bcrypt
 from datetime import datetime
 import uuid
-from sqlalchemy.dialects.postgresql import UUID
 
 class Company(db.Model):
     __tablename__ = 'companies'
@@ -22,13 +21,14 @@ class Role(db.Model):
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
-    public_id = db.Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True)
+    public_id = db.Column(db.String(36), default=lambda: str(uuid.uuid4()), unique=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     first_name = db.Column(db.String(50))
     last_name = db.Column(db.String(50))
-    status = db.Column(db.Enum('pending', 'active', 'suspended', 'deactivated', name='user_status'), default='pending')
+    status = db.Column(db.String(20), default='pending') # Use string for SQLite compatibility
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=True)
     role = db.relationship('Role', backref='users')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     activated_at = db.Column(db.DateTime, nullable=True)

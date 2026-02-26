@@ -1,133 +1,207 @@
-import { useNavigate } from "react-router-dom"
 import { useAuthStore } from "@/store/authStore"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DollarSign, Users, Ticket, ArrowUpRight, LogOut } from "lucide-react"
+import { DollarSign, Users, Ticket, ArrowUpRight, Phone, Mail, MessageSquare, Calendar } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import api from "@/services/api"
+import {
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    AreaChart,
+    Area
+} from "recharts"
+import { format } from "date-fns"
+
+interface DashboardData {
+    kpis: {
+        total_revenue: number
+        active_leads: number
+        open_tickets: number
+        high_priority_tickets: number
+        conversion_rate: number
+    }
+    sales_chart: Array<{ date: string, total: number }>
+    recent_activity: Array<{
+        id: number
+        type: string
+        description: string
+        contact_name: string
+        timestamp: string
+    }>
+}
 
 export default function Dashboard() {
-    const navigate = useNavigate()
-    const { user, logout } = useAuthStore()
+    const { user } = useAuthStore()
 
-    const handleLogout = () => {
-        logout()
-        navigate("/login")
+    const { data, isLoading, error } = useQuery<DashboardData>({
+        queryKey: ['dashboard-data'],
+        queryFn: async () => {
+            const response = await api.get('/crm/dashboard')
+            return response.data.data
+        }
+    })
+
+    const getActivityIcon = (type: string) => {
+        switch (type) {
+            case 'call': return <Phone className="w-4 h-4" />
+            case 'email': return <Mail className="w-4 h-4" />
+            case 'meeting': return <Calendar className="w-4 h-4" />
+            case 'note': return <MessageSquare className="w-4 h-4" />
+            default: return <Users className="w-4 h-4" />
+        }
     }
 
-    return (
-        <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors duration-300">
-            {/* Top Header */}
-            <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                            <span className="text-primary-foreground font-bold">S</span>
-                        </div>
-                        <span className="font-bold text-xl tracking-tight">SME POS</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="hidden md:flex items-center gap-2 mr-4 text-sm text-muted-foreground border-r pr-4">
-                            <span className="font-medium text-foreground">{user?.first_name} {user?.last_name}</span>
-                            <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] uppercase font-bold tracking-tight">
-                                {user?.role}
-                            </span>
-                        </div>
-                        <ThemeToggle />
-                        <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
-                            <LogOut className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                        <Button size="sm">New Transaction</Button>
-                    </div>
-                </div>
-            </header>
+    if (isLoading) return <div className="flex items-center justify-center h-96">Loading metrics...</div>
+    if (error) return <div className="text-destructive p-4 border border-destructive rounded-lg bg-destructive/10">Failed to load dashboard data. Please try again.</div>
 
-            {/* Main Content */}
-            <main className="flex-1 container mx-auto px-4 py-8">
-                <div className="flex items-end justify-between mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                        <p className="text-muted-foreground">Overview of your business performance.</p>
-                    </div>
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                    <p className="text-muted-foreground">Welcome back, {user?.first_name}. Here's what's happening with {user?.company_name || 'your business'}.</p>
+                </div>
+                <div className="flex gap-3">
                     <Button variant="outline" size="sm" className="gap-2">
                         Download Report <ArrowUpRight className="w-4 h-4" />
                     </Button>
+                    <Button size="sm">New Transaction</Button>
                 </div>
+            </div>
 
-                {/* KPI Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-                    <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-xs font-bold tracking-widest">
-                            <CardTitle className="text-xs font-bold">Total Revenue</CardTitle>
-                            <DollarSign className="w-4 h-4 text-primary" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">₱124,500.00</div>
-                            <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
-                                +12% <span className="text-muted-foreground opacity-50">from last month</span>
-                            </p>
-                        </CardContent>
-                    </Card>
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur ring-1 ring-white/10">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-[10px] font-bold tracking-widest">
+                        <CardTitle className="text-xs font-bold">Total Revenue</CardTitle>
+                        <DollarSign className="w-4 h-4 text-primary" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">₱{data?.kpis.total_revenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</div>
+                        <p className="text-[10px] text-green-500 mt-1 font-medium flex items-center gap-1">
+                            Live <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+                        </p>
+                    </CardContent>
+                </Card>
 
-                    <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-xs font-bold tracking-widest">
-                            <CardTitle className="text-xs font-bold">Active leads</CardTitle>
-                            <Users className="w-4 h-4 text-primary" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">48</div>
-                            <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
-                                +8 <span className="text-muted-foreground opacity-50">this week</span>
-                            </p>
-                        </CardContent>
-                    </Card>
+                <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur ring-1 ring-white/10">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-[10px] font-bold tracking-widest">
+                        <CardTitle className="text-xs font-bold">Active leads</CardTitle>
+                        <Users className="w-4 h-4 text-primary" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{data?.kpis.active_leads}</div>
+                        <p className="text-[10px] text-blue-500 mt-1 font-medium">Ready for follow-up</p>
+                    </CardContent>
+                </Card>
 
-                    <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-xs font-bold tracking-widest">
-                            <CardTitle className="text-xs font-bold">Open Tickets</CardTitle>
-                            <Ticket className="w-4 h-4 text-primary" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">14</div>
-                            <p className="text-xs text-amber-500 mt-1 flex items-center gap-1">
-                                4 high priority <span className="text-muted-foreground opacity-50">needs action</span>
-                            </p>
-                        </CardContent>
-                    </Card>
+                <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur ring-1 ring-white/10">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-[10px] font-bold tracking-widest">
+                        <CardTitle className="text-xs font-bold">Open Tickets</CardTitle>
+                        <Ticket className="w-4 h-4 text-primary" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{data?.kpis.open_tickets}</div>
+                        <p className="text-[10px] text-amber-500 mt-1 font-medium">
+                            {data?.kpis.high_priority_tickets} high priority
+                        </p>
+                    </CardContent>
+                </Card>
 
-                    <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-xs font-bold tracking-widest">
-                            <CardTitle className="text-xs font-bold">Conversion Rate</CardTitle>
-                            <ArrowUpRight className="w-4 h-4 text-primary" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">3.2%</div>
-                            <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
-                                +0.4% <span className="text-muted-foreground opacity-50">since yesterday</span>
-                            </p>
-                        </CardContent>
-                    </Card>
-                </div>
+                <Card className="overflow-hidden border-none shadow-xl bg-card/50 backdrop-blur ring-1 ring-white/10">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 text-muted-foreground uppercase text-[10px] font-bold tracking-widest">
+                        <CardTitle className="text-xs font-bold">Conversion Rate</CardTitle>
+                        <ArrowUpRight className="w-4 h-4 text-primary" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{data?.kpis.conversion_rate}%</div>
+                        <p className="text-[10px] text-muted-foreground mt-1">Lead to Deal Won</p>
+                    </CardContent>
+                </Card>
+            </div>
 
-                {/* Layout Placeholder for Charts */}
-                <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-                    <Card className="lg:col-span-4 min-h-[400px] border-none shadow-xl bg-card/50 backdrop-blur">
-                        <CardHeader>
-                            <CardTitle>Sales Over Time</CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-[300px] flex items-center justify-center text-muted-foreground">
-                            [ Revenue Chart Placeholder ]
-                        </CardContent>
-                    </Card>
-                    <Card className="lg:col-span-3 min-h-[400px] border-none shadow-xl bg-card/50 backdrop-blur">
-                        <CardHeader>
-                            <CardTitle>Recent Activity</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-muted-foreground">
-                            [ Activity Feed Placeholder ]
-                        </CardContent>
-                    </Card>
-                </div>
-            </main>
+            {/* Charts & Activity */}
+            <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+                <Card className="lg:col-span-4 border-none shadow-xl bg-card/50 backdrop-blur ring-1 ring-white/10">
+                    <CardHeader>
+                        <CardTitle className="text-lg">Revenue Trend (30 Days)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-[350px] pl-2 pt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={data?.sales_chart}>
+                                <defs>
+                                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" opacity={0.1} />
+                                <XAxis
+                                    dataKey="date"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                                    tickFormatter={(str) => format(new Date(str), 'MMM d')}
+                                />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                                    tickFormatter={(val) => `₱${val / 1000}k`}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: 'hsl(var(--card))',
+                                        borderColor: 'hsl(var(--border))',
+                                        borderRadius: '8px',
+                                        fontSize: '12px'
+                                    }}
+                                    formatter={(value: any) => [`₱${(value || 0).toLocaleString()}`, 'Revenue']}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="total"
+                                    stroke="var(--primary)"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorTotal)"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-3 border-none shadow-xl bg-card/50 backdrop-blur ring-1 ring-white/10">
+                    <CardHeader>
+                        <CardTitle className="text-lg">Recent Activity</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {data?.recent_activity.map((activity) => (
+                            <div key={activity.id} className="flex gap-4 items-start group">
+                                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                                    {getActivityIcon(activity.type)}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-sm font-medium leading-none mb-1">{activity.contact_name}</span>
+                                    <span className="text-xs text-muted-foreground truncate">{activity.description}</span>
+                                    <span className="text-[10px] text-muted-foreground/60 mt-1 uppercase tracking-tight">
+                                        {format(new Date(activity.timestamp), 'h:mm a · MMM d')}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                        {data?.recent_activity.length === 0 && (
+                            <div className="text-center py-12 text-muted-foreground text-sm italic">
+                                No recent activities logged yet.
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     )
 }

@@ -44,6 +44,11 @@ def register():
     token = generate_signed_url({'user_id': user.id}, salt='activate-account')
     activation_url = f"{request.host_url}api/v1/auth/activate/{token}"
     
+    # EXPLICITLY LOG FOR USER
+    log_msg = f"\n{'='*50}\nACTIVATE ACCOUNT LINK: {activation_url}\n{'='*50}\n"
+    print(log_msg)
+    current_app.logger.info(log_msg)
+    
     return jsonify({
         "success": True,
         "message": "Registration successful. Please check your email to activate account.",

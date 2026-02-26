@@ -21,9 +21,14 @@ def require_permission(*permissions):
         @wraps(f)
         def decorated(*args, **kwargs):
             # This requires g.current_user to be set via middleware or JWT
-            from flask_jwt_extended import get_jwt_identity
+            from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
             from app.models import User
             
+            try:
+                verify_jwt_in_request()
+            except Exception as e:
+                abort(401)
+                
             user_id = get_jwt_identity()
             if not user_id:
                 abort(401)
@@ -36,8 +41,11 @@ def require_permission(*permissions):
             print(f"Checking permissions {permissions} for user {user.email}")
             
             # Simple check for now, can be expanded to full RBAC logic
-            if not user.role or not any(p in user.role.permissions for p in permissions):
-                abort(403)
+            user_permissions = user.role.permissions if user.role and user.role.permissions else []
+            if not user.role or not any(p in user_permissions for p in permissions):
+                # Allow '*' wildcard for super admins
+                if '*' not in user_permissions:
+                    abort(403)
                 
             g.current_user = user
             return f(*args, **kwargs)

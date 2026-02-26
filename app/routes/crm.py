@@ -1,9 +1,65 @@
 from flask import Blueprint, jsonify, request, g
-from app.models import db, Contact, Activity, Deal
+from app.models import db, Contact, Activity, Deal, Sale, Ticket
 from app.utils.security import require_permission
+from sqlalchemy import func, extract
+from datetime import datetime, timedelta
 import math
 
 crm_bp = Blueprint('crm', __name__)
+
+@crm_bp.route('/dashboard', methods=['GET'])
+@require_permission('crm.dashboard.view') # Should be assigned to Company Owner
+def get_crm_dashboard():
+    company_id = g.current_user.company_id
+    
+    # 1. KPI: Total Revenue (from Sales)
+    total_revenue = db.session.query(func.sum(Sale.total_amount)).filter_by(company_id=company_id).scalar() or 0.00
+    
+    # 2. KPI: Active Leads
+    active_leads_count = Contact.query.filter_by(company_id=company_id, type='lead').count()
+    
+    # 3. KPI: Open Tickets
+    open_tickets_count = Ticket.query.filter_by(company_id=company_id, status='open').count()
+    high_priority_tickets = Ticket.query.filter_by(company_id=company_id, status='open', priority='high').count()
+    
+    # 4. KPI: Conversion Rate (Placeholder calculation for now: Deals won / Total contacts)
+    total_contacts = Contact.query.filter_by(company_id=company_id).count()
+    won_deals = Deal.query.filter_by(company_id=company_id, stage='won').count()
+    conversion_rate = (won_deals / total_contacts * 100) if total_contacts > 0 else 0.0
+    
+    # 5. Chart Data: Sales over last 30 days
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    sales_data = db.session.query(
+        func.date(Sale.created_at).label('date'),
+        func.sum(Sale.total_amount).label('total')
+    ).filter(Sale.company_id == company_id, Sale.created_at >= thirty_days_ago)\
+    .group_by(func.date(Sale.created_at)).order_by(func.date(Sale.created_at)).all()
+    
+    # 6. Recent Activity
+    recent_activities = Activity.query.filter(Activity.contact_id.in_(
+        db.session.query(Contact.id).filter_by(company_id=company_id)
+    )).order_by(Activity.created_at.desc()).limit(10).all()
+    
+    return jsonify({
+        "success": True,
+        "data": {
+            "kpis": {
+                "total_revenue": float(total_revenue),
+                "active_leads": active_leads_count,
+                "open_tickets": open_tickets_count,
+                "high_priority_tickets": high_priority_tickets,
+                "conversion_rate": round(conversion_rate, 2)
+            },
+            "sales_chart": [{"date": str(s.date), "total": float(s.total)} for s in sales_data],
+            "recent_activity": [{
+                "id": a.id,
+                "type": a.type,
+                "description": a.description,
+                "contact_name": f"{a.contact.first_name} {a.contact.last_name}",
+                "timestamp": a.created_at.isoformat()
+            } for a in recent_activities]
+        }
+    }), 200
 
 @crm_bp.route('/contacts', methods=['GET'])
 @require_permission('crm.contacts.view')
