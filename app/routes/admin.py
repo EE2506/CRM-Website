@@ -138,6 +138,9 @@ def change_user_role(user_id):
     if not role:
         return jsonify({"success": False, "error": {"message": "Role not found"}}), 404
         
+    if user.role and user.role.name in ["Company Owner", "Owner"]:
+        return jsonify({"success": False, "error": {"message": "Cannot change the role of a Company Owner"}}), 403
+        
     user.role_id = role.id
     db.session.commit()
     
@@ -157,6 +160,9 @@ def delete_user(user_id):
     if user.id == g.current_user.id:
         return jsonify({"success": False, "error": {"message": "Cannot delete yourself"}}), 400
         
+    if user.role and user.role.name in ["Company Owner", "Owner"]:
+        return jsonify({"success": False, "error": {"message": "Cannot delete a Company Owner"}}), 403
+        
     db.session.delete(user)
     db.session.commit()
     
@@ -173,6 +179,39 @@ def get_roles():
         "success": True,
         "data": [{"id": r.id, "name": r.name, "permissions": r.permissions} for r in roles]
     }), 200
+
+@admin_bp.route('/roles', methods=['POST'])
+@require_permission('admin.users.manage')
+def create_role():
+    # Only allow Company Owners to create new roles
+    if g.current_user.role.name not in ["Company Owner", "Owner"]:
+        return jsonify({"success": False, "error": {"message": "Only Company Owners can create roles."}}), 403
+        
+    data = request.get_json() or {}
+    name = data.get('name')
+    permissions = data.get('permissions', [])
+    
+    if not name:
+        return jsonify({"success": False, "error": {"message": "Role name is required"}}), 400
+        
+    # Check if role already exists in this company
+    existing = Role.query.filter_by(name=name, company_id=g.current_user.company_id).first()
+    if existing:
+        return jsonify({"success": False, "error": {"message": "A role with this name already exists."}}), 400
+        
+    new_role = Role(
+        name=name,
+        company_id=g.current_user.company_id,
+        permissions=permissions
+    )
+    db.session.add(new_role)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "Role created successfully",
+        "data": {"id": new_role.id, "name": new_role.name, "permissions": new_role.permissions}
+    }), 201
 
 @admin_bp.route('/company/invite-code', methods=['GET'])
 @require_permission('admin.users.manage')

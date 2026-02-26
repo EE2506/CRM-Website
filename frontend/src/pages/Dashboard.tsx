@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/store/authStore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DollarSign, Users, Ticket, ArrowUpRight, Phone, Mail, MessageSquare, Calendar } from "lucide-react"
+import { DollarSign, Users, Ticket, ArrowUpRight, Phone, Mail, MessageSquare, Calendar, Shield } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import api from "@/services/api"
 import {
@@ -55,7 +55,25 @@ export default function Dashboard() {
     }
 
     if (isLoading) return <div className="flex items-center justify-center h-96">Loading metrics...</div>
-    if (error) return <div className="text-destructive p-4 border border-destructive rounded-lg bg-destructive/10">Failed to load dashboard data. Please try again.</div>
+    if (error) {
+        const isForbidden = (error as any).response?.status === 403;
+        if (isForbidden) {
+            return (
+                <div className="flex flex-col items-center justify-center h-96 space-y-4 text-center animate-in fade-in duration-500">
+                    <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+                        <Shield className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold">Access Restricted</h2>
+                        <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
+                            You don't have the required permissions to view the analytics dashboard. Please contact your company administrator.
+                        </p>
+                    </div>
+                </div>
+            )
+        }
+        return <div className="text-destructive p-4 border border-destructive rounded-lg bg-destructive/10">Failed to load dashboard data. Please try again.</div>
+    }
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
