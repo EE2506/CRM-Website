@@ -6,7 +6,7 @@ import datetime
 tickets_bp = Blueprint('tickets', __name__)
 
 @tickets_bp.route('', methods=['GET'])
-@require_permission('tickets.view')
+@require_permission('tickets.view', 'tickets.manage')
 def get_tickets():
     status = request.args.get('status')
     priority = request.args.get('priority')
@@ -35,7 +35,7 @@ def get_tickets():
     }), 200
 
 @tickets_bp.route('', methods=['POST'])
-@require_permission('tickets.create')
+@require_permission('tickets.create', 'tickets.manage')
 def create_ticket():
     data = request.get_json()
     
@@ -63,7 +63,7 @@ def create_ticket():
     }), 201
 
 @tickets_bp.route('/<int:id>', methods=['GET'])
-@require_permission('tickets.view')
+@require_permission('tickets.view', 'tickets.manage')
 def get_ticket_detail(id):
     ticket = Ticket.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     
@@ -92,7 +92,7 @@ def get_ticket_detail(id):
     }), 200
 
 @tickets_bp.route('/<int:id>/replies', methods=['POST'])
-@require_permission('tickets.reply')
+@require_permission('tickets.reply', 'tickets.manage')
 def add_reply(id):
     ticket = Ticket.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     data = request.get_json()
@@ -119,7 +119,7 @@ def add_reply(id):
     return jsonify({"success": True, "message": "Reply added successfully"}), 201
 
 @tickets_bp.route('/<int:id>/assign', methods=['POST'])
-@require_permission('tickets.assign')
+@require_permission('tickets.assign', 'tickets.manage')
 def assign_ticket(id):
     ticket = Ticket.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     data = request.get_json()

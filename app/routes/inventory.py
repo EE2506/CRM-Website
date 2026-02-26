@@ -5,7 +5,7 @@ from app.utils.security import require_permission
 inventory_bp = Blueprint('inventory', __name__)
 
 @inventory_bp.route('', methods=['GET'])
-@require_permission('inventory.view')
+@require_permission('inventory.view', 'inventory.manage')
 def get_inventory():
     query = Product.query.filter_by(company_id=g.current_user.company_id)
     products = query.order_by(Product.created_at.desc()).all()
@@ -23,7 +23,7 @@ def get_inventory():
     }), 200
 
 @inventory_bp.route('', methods=['POST'])
-@require_permission('inventory.create')
+@require_permission('inventory.create', 'inventory.manage')
 def create_product():
     data = request.get_json()
     
@@ -48,7 +48,7 @@ def create_product():
     }), 201
 
 @inventory_bp.route('/<int:id>', methods=['PUT', 'PATCH'])
-@require_permission('inventory.edit')
+@require_permission('inventory.edit', 'inventory.manage')
 def update_product(id):
     product = Product.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     data = request.get_json()
@@ -62,7 +62,7 @@ def update_product(id):
     return jsonify({"success": True, "message": "Product updated successfully"}), 200
 
 @inventory_bp.route('/<int:id>', methods=['DELETE'])
-@require_permission('inventory.delete')
+@require_permission('inventory.delete', 'inventory.manage')
 def delete_product(id):
     product = Product.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     db.session.delete(product)

@@ -177,3 +177,4 @@ lerna-debug.log*
 .agent/
 .gemini/
 PRD.md
+sme-dashboard-agent-prompt.md

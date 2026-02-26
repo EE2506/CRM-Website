@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, g
-from app.models import db, Contact, Activity, Deal, Sale, Ticket
+from app.models import db, Contact, Activity, Deal, Sale, SaleItem, Ticket, Expense, TimeLog, StockCount, Product
 from app.utils.security import require_permission
 from sqlalchemy import func, extract
 from datetime import datetime, timedelta
@@ -8,7 +8,7 @@ import math
 crm_bp = Blueprint('crm', __name__)
 
 @crm_bp.route('/dashboard', methods=['GET'])
-@require_permission('crm.dashboard.view') # Should be assigned to Company Owner
+@require_permission('crm.dashboard.view', 'admin.analytics.view') # Should be assigned to Company Owner
 def get_crm_dashboard():
     company_id = g.current_user.company_id
     
@@ -61,8 +61,136 @@ def get_crm_dashboard():
         }
     }), 200
 
+@crm_bp.route('/dashboard/advanced', methods=['GET'])
+@require_permission('crm.dashboard.view', 'admin.analytics.view')
+def get_advanced_dashboard():
+    company_id = g.current_user.company_id
+    
+    # Time boundaries (Today vs Month)
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # --- SALES & REVENUE ---
+    monthly_sales = db.session.query(func.sum(Sale.total_amount)).filter(
+        Sale.company_id == company_id, Sale.created_at >= month_start).scalar() or 0.00
+        
+    monthly_expenses = db.session.query(func.sum(Expense.amount)).filter(
+        Expense.company_id == company_id, Expense.date >= month_start).scalar() or 0.00
+        
+    net_revenue = monthly_sales - monthly_expenses
+    
+    # --- LABOR ---
+    # Simplified generic labor cost estimation for demo purposes if no payroll module.
+    # In a real app, you'd multiply hours by hourly wage. Here we just count active shifts.
+    active_shifts = TimeLog.query.filter_by(company_id=company_id, status='active').all()
+    
+    active_shift_data = [{
+        "user_id": log.user_id,
+        "user_name": f"{log.user.first_name} {log.user.last_name}",
+        "clock_in": log.clock_in.isoformat()
+    } for log in active_shifts if log.user]
+    
+    # --- INVENTORY & SHRINKAGE ---
+    low_stock_items = Product.query.filter(
+        Product.company_id == company_id,
+        Product.stock_quantity <= Product.reorder_point
+    ).limit(10).all()
+    
+    low_stock_data = [{
+        "name": p.name,
+        "sku": p.sku,
+        "stock": p.stock_quantity,
+        "reorder_point": p.reorder_point
+    } for p in low_stock_items]
+    
+    # Calculate Shrinkage (Value of missing stock from most recent counts)
+    shrinkage_events = StockCount.query.filter(
+        StockCount.company_id == company_id,
+        StockCount.difference < 0 # Negative difference means lost stock
+    ).order_by(StockCount.created_at.desc()).limit(50).all()
+    
+    total_shrinkage_value = sum([abs(s.difference) * s.product.cost_price for s in shrinkage_events if s.product])
+    
+    # --- TOP SELLERS ---
+    # Group sale items by product name to find best sellers
+    top_sellers_query = db.session.query(
+        SaleItem.product_name,
+        func.sum(SaleItem.quantity).label('total_qty'),
+        func.sum(SaleItem.total_price).label('total_revenue')
+    ).join(Sale).filter(Sale.company_id == company_id).group_by(SaleItem.product_name).order_by(db.text('total_qty DESC')).limit(5).all()
+    
+    top_sellers_data = [{
+        "name": ts.product_name or "Unknown Item",
+        "quantity": int(ts.total_qty),
+        "revenue": float(ts.total_revenue)
+    } for ts in top_sellers_query]
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "financials": {
+                "monthly_sales": float(monthly_sales),
+                "monthly_expenses": float(monthly_expenses),
+                "net_revenue": float(net_revenue)
+            },
+            "labor": {
+                "active_shifts_count": len(active_shifts),
+                "active_shifts": active_shift_data
+            },
+            "inventory": {
+                "total_shrinkage_value": float(total_shrinkage_value),
+                "low_stock_alerts": low_stock_data
+            },
+            "sales": {
+                "top_sellers": top_sellers_data
+            }
+        }
+    }), 200
+
+@crm_bp.route('/time-log/clock-in', methods=['POST'])
+@require_permission('crm.dashboard.view') # Any staff that can see dashboard can clock in
+def clock_in():
+    # Check if already clocked in
+    active_log = TimeLog.query.filter_by(user_id=g.current_user.id, status='active').first()
+    if active_log:
+        return jsonify({"success": False, "error": {"message": "You are already clocked in"}}), 400
+        
+    new_log = TimeLog(
+        user_id=g.current_user.id,
+        company_id=g.current_user.company_id
+    )
+    db.session.add(new_log)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "Clocked in successfully",
+        "data": {
+            "clock_in_time": new_log.clock_in.isoformat()
+        }
+    }), 201
+
+@crm_bp.route('/time-log/clock-out', methods=['POST'])
+@require_permission('crm.dashboard.view')
+def clock_out():
+    active_log = TimeLog.query.filter_by(user_id=g.current_user.id, status='active').first()
+    if not active_log:
+        return jsonify({"success": False, "error": {"message": "You are not currently clocked in"}}), 400
+        
+    active_log.clock_out = datetime.utcnow()
+    active_log.status = 'completed'
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "Clocked out successfully",
+        "data": {
+            "clock_out_time": active_log.clock_out.isoformat()
+        }
+    }), 200
+
 @crm_bp.route('/contacts', methods=['GET'])
-@require_permission('crm.contacts.view')
+@require_permission('crm.contacts.view', 'contacts.manage')
 def get_contacts():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
@@ -96,7 +224,7 @@ def get_contacts():
     }), 200
 
 @crm_bp.route('/contacts', methods=['POST'])
-@require_permission('crm.contacts.create')
+@require_permission('crm.contacts.create', 'contacts.manage')
 def create_contact():
     data = request.get_json()
     
@@ -123,7 +251,7 @@ def create_contact():
     }), 201
 
 @crm_bp.route('/contacts/<int:id>', methods=['GET'])
-@require_permission('crm.contacts.view')
+@require_permission('crm.contacts.view', 'contacts.manage')
 def get_contact_detail(id):
     contact = Contact.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     
@@ -149,7 +277,7 @@ def get_contact_detail(id):
     }), 200
 
 @crm_bp.route('/contacts/<int:id>', methods=['PUT'])
-@require_permission('crm.contacts.edit')
+@require_permission('crm.contacts.edit', 'contacts.manage')
 def update_contact(id):
     contact = Contact.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     data = request.get_json()
@@ -165,7 +293,7 @@ def update_contact(id):
     return jsonify({"success": True, "message": "Contact updated successfully"}), 200
 
 @crm_bp.route('/contacts/<int:id>', methods=['DELETE'])
-@require_permission('crm.contacts.delete')
+@require_permission('crm.contacts.delete', 'contacts.manage')
 def delete_contact(id):
     contact = Contact.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     db.session.delete(contact)
@@ -175,7 +303,7 @@ def delete_contact(id):
 # --- Deal Routes ---
 
 @crm_bp.route('/deals', methods=['GET'])
-@require_permission('crm.deals.view')
+@require_permission('crm.deals.view', 'deals.manage')
 def get_deals():
     query = Deal.query.filter_by(company_id=g.current_user.company_id)
     deals = query.all()
@@ -193,7 +321,7 @@ def get_deals():
     }), 200
 
 @crm_bp.route('/deals', methods=['POST'])
-@require_permission('crm.deals.create')
+@require_permission('crm.deals.create', 'deals.manage')
 def create_deal():
     data = request.get_json()
     
@@ -221,7 +349,7 @@ def create_deal():
 # --- Activity Routes ---
 
 @crm_bp.route('/contacts/<int:id>/activities', methods=['POST'])
-@require_permission('crm.activities.create')
+@require_permission('crm.activities.create', 'contacts.manage', 'deals.manage')
 def create_activity(id):
     contact = Contact.query.filter_by(id=id, company_id=g.current_user.company_id).first_or_404()
     data = request.get_json()
@@ -245,7 +373,7 @@ def create_activity(id):
     }), 201
 
 @crm_bp.route('/contacts/export', methods=['GET'])
-@require_permission('crm.contacts.export')
+@require_permission('crm.contacts.export', 'contacts.manage')
 def export_contacts():
     import csv
     import io
