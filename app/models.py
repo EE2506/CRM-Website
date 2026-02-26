@@ -7,9 +7,16 @@ class Company(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     tax_id = db.Column(db.String(50), unique=True)
+    invite_code = db.Column(db.String(10), unique=True, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     users = db.relationship('User', backref='company', lazy=True)
+
+    @staticmethod
+    def generate_invite_code():
+        import string
+        import random
+        return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -139,6 +146,9 @@ class Product(db.Model):
     name = db.Column(db.String(100), nullable=False)
     category = db.Column(db.String(50))
     price = db.Column(db.Numeric(12, 2), nullable=False)
+    cost_price = db.Column(db.Numeric(12, 2), default=0.00)
+    stock_quantity = db.Column(db.Integer, default=0)
+    reorder_point = db.Column(db.Integer, default=10)
     
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -165,3 +175,37 @@ class SaleItem(db.Model):
     quantity = db.Column(db.Integer, default=1)
     unit_price = db.Column(db.Numeric(12, 2), nullable=False)
     total_price = db.Column(db.Numeric(12, 2), nullable=False)
+
+class Expense(db.Model):
+    __tablename__ = 'expenses'
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    category = db.Column(db.String(50)) # e.g., utilities, payroll, supplies
+    description = db.Column(db.Text)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+
+class TimeLog(db.Model):
+    __tablename__ = 'time_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    clock_in = db.Column(db.DateTime, default=datetime.utcnow)
+    clock_out = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default='active') # active, completed
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+
+class StockCount(db.Model):
+    __tablename__ = 'stock_counts'
+    id = db.Column(db.Integer, primary_key=True)
+    expected_quantity = db.Column(db.Integer, nullable=False)
+    actual_quantity = db.Column(db.Integer, nullable=False)
+    difference = db.Column(db.Integer, nullable=False) # shrinkage/overage
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False) # Who counted
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+

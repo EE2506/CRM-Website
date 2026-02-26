@@ -5,7 +5,7 @@ import datetime
 
 tickets_bp = Blueprint('tickets', __name__)
 
-@tickets_bp.route('/', methods=['GET'])
+@tickets_bp.route('', methods=['GET'])
 @require_permission('tickets.view')
 def get_tickets():
     status = request.args.get('status')
@@ -34,7 +34,7 @@ def get_tickets():
         } for t in tickets]
     }), 200
 
-@tickets_bp.route('/', methods=['POST'])
+@tickets_bp.route('', methods=['POST'])
 @require_permission('tickets.create')
 def create_ticket():
     data = request.get_json()

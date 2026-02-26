@@ -16,47 +16,80 @@ def register():
     if User.query.filter_by(email=data['email']).first():
         return jsonify({"success": False, "error": {"code": "ALREADY_EXISTS", "message": "Email already registered"}}), 409
         
-    # Create company if provided, or use default
-    company_name = data.get('company_name', f"{data['email']}'s Company")
-    company = Company(name=company_name)
-    db.session.add(company)
-    db.session.flush() # Get company ID
+    invite_code_input = data.get('invite_code')
     
-    # Create default role for owner
-    owner_role = Role(name='Company Owner', permissions=['*'], company_id=company.id)
-    db.session.add(owner_role)
-    db.session.flush()
+    if invite_code_input:
+        company = Company.query.filter_by(invite_code=invite_code_input).first()
+        if not company:
+            return jsonify({"success": False, "error": {"code": "NOT_FOUND", "message": "Invalid invite code"}}), 404
+            
+        user = User(
+            email=data['email'],
+            first_name=data.get('first_name'),
+            last_name=data.get('last_name'),
+            company_id=company.id,
+            role_id=None,
+            status='pending_approval' # Wait for admin to approve
+        )
+        user.set_password(data['password'])
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": "Registration successful. Please wait for an Admin to approve your account.",
+            "data": { "email": user.email, "status": "pending_approval" }
+        }), 201
+        
+    else:
+        # Create company if provided, or use default
+        company_name = data.get('company_name', f"{data['email']}'s Company")
+        
+        # Generate unique code
+        new_code = Company.generate_invite_code()
+        while Company.query.filter_by(invite_code=new_code).first():
+            new_code = Company.generate_invite_code()
+            
+        company = Company(name=company_name, invite_code=new_code)
+        db.session.add(company)
+        db.session.flush() # Get company ID
+        
+        # Create default role for owner
+        owner_role = Role(name='Company Owner', permissions=['*'], company_id=company.id)
+        db.session.add(owner_role)
+        db.session.flush()
 
-    user = User(
-        email=data['email'],
-        first_name=data.get('first_name'),
-        last_name=data.get('last_name'),
-        company_id=company.id,
-        role_id=owner_role.id,
-        status='pending'
-    )
-    user.set_password(data['password'])
-    
-    db.session.add(user)
-    db.session.commit()
-    
-    # Generate activation link
-    token = generate_signed_url({'user_id': user.id}, salt='activate-account')
-    activation_url = f"{request.host_url}api/v1/auth/activate/{token}"
-    
-    # EXPLICITLY LOG FOR USER
-    log_msg = f"\n{'='*50}\nACTIVATE ACCOUNT LINK: {activation_url}\n{'='*50}\n"
-    print(log_msg)
-    current_app.logger.info(log_msg)
-    
-    return jsonify({
-        "success": True,
-        "message": "Registration successful. Please check your email to activate account.",
-        "data": {
-            "email": user.email,
-            "activation_url": activation_url # For demo purposes
-        }
-    }), 201
+        user = User(
+            email=data['email'],
+            first_name=data.get('first_name'),
+            last_name=data.get('last_name'),
+            company_id=company.id,
+            role_id=owner_role.id,
+            status='pending'
+        )
+        user.set_password(data['password'])
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        # Generate activation link
+        token = generate_signed_url({'user_id': user.id}, salt='activate-account')
+        activation_url = f"{request.host_url}api/v1/auth/activate/{token}"
+        
+        # EXPLICITLY LOG FOR USER
+        log_msg = f"\n{'='*50}\nACTIVATE ACCOUNT LINK: {activation_url}\n{'='*50}\n"
+        print(log_msg)
+        current_app.logger.info(log_msg)
+        
+        return jsonify({
+            "success": True,
+            "message": "Registration successful. Please check your email to activate account.",
+            "data": {
+                "email": user.email,
+                "activation_url": activation_url # For demo purposes
+            }
+        }), 201
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

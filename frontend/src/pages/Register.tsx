@@ -12,7 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, CheckCircle2 } from 'lucide-react'
 
 const registerSchema = z.object({
-    company_name: z.string().min(2, 'Company name is too short'),
+    company_name: z.string().optional(),
+    invite_code: z.string().optional(),
     email: z.string().email('Invalid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     first_name: z.string().min(2, 'First name is too short'),
@@ -25,6 +26,8 @@ export default function Register() {
     const [error, setError] = useState<string | null>(null)
     const [isSuccess, setIsSuccess] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
+    const [isJoining, setIsJoining] = useState(false)
+    const [statusMessage, setStatusMessage] = useState("")
     const navigate = useNavigate()
 
     const {
@@ -38,8 +41,29 @@ export default function Register() {
     const onSubmit = async (data: RegisterForm) => {
         setIsLoading(true)
         setError(null)
+
+        if (isJoining && (!data.invite_code || data.invite_code.length < 5)) {
+            setError("A valid invite code is required to join a company.")
+            setIsLoading(false)
+            return
+        }
+        if (!isJoining && (!data.company_name || data.company_name.length < 2)) {
+            setError("Company name is required to create a new company.")
+            setIsLoading(false)
+            return
+        }
+
+        const payload = {
+            email: data.email,
+            password: data.password,
+            first_name: data.first_name,
+            last_name: data.last_name,
+            ...(isJoining ? { invite_code: data.invite_code } : { company_name: data.company_name })
+        }
+
         try {
-            await api.post('/auth/register', data)
+            const res = await api.post('/auth/register', payload)
+            setStatusMessage(res.data.message || "Registration successful.")
             setIsSuccess(true)
         } catch (err: any) {
             setError(err.response?.data?.error?.message || 'Failed to register. Please try again.')
@@ -56,9 +80,9 @@ export default function Register() {
                         <div className="flex justify-center mb-4">
                             <CheckCircle2 className="w-16 h-16 text-green-500" />
                         </div>
-                        <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
+                        <CardTitle className="text-2xl font-bold">Registration Complete</CardTitle>
                         <CardDescription>
-                            We've sent an activation link to your email address. Please click the link to activate your account.
+                            {statusMessage}
                         </CardDescription>
                     </CardHeader>
                     <CardFooter>
@@ -88,18 +112,49 @@ export default function Register() {
                             </Alert>
                         )}
 
-                        <div className="space-y-2">
-                            <Label htmlFor="company_name">Company Name</Label>
-                            <Input
-                                id="company_name"
-                                placeholder="Acme Corp"
-                                {...register('company_name')}
-                                className={errors.company_name ? 'border-destructive' : ''}
-                            />
-                            {errors.company_name && (
-                                <p className="text-xs text-destructive">{errors.company_name.message}</p>
-                            )}
+                        <div className="flex items-center gap-2 p-1 bg-secondary rounded-lg mb-6">
+                            <Button
+                                type="button"
+                                variant={!isJoining ? "default" : "ghost"}
+                                className="w-1/2 h-9 text-sm font-medium"
+                                onClick={() => setIsJoining(false)}
+                            >
+                                Create Company
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isJoining ? "default" : "ghost"}
+                                className="w-1/2 h-9 text-sm font-medium"
+                                onClick={() => setIsJoining(true)}
+                            >
+                                Join via Code
+                            </Button>
                         </div>
+
+                        {!isJoining ? (
+                            <div className="space-y-2">
+                                <Label htmlFor="company_name">Company Name</Label>
+                                <Input
+                                    id="company_name"
+                                    placeholder="Acme Corp"
+                                    {...register('company_name')}
+                                    className={errors.company_name ? 'border-destructive' : ''}
+                                />
+                                {errors.company_name && (
+                                    <p className="text-xs text-destructive">{errors.company_name.message}</p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <Label htmlFor="invite_code">Invite Code</Label>
+                                <Input
+                                    id="invite_code"
+                                    placeholder="Enter 6-character code"
+                                    className="uppercase font-mono tracking-widest text-lg"
+                                    {...register('invite_code')}
+                                />
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">

@@ -10,7 +10,8 @@ import {
     LogOut,
     ChevronLeft,
     ChevronRight,
-    ShoppingBag
+    ShoppingBag,
+    Shield
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
@@ -27,6 +28,7 @@ export function Sidebar() {
         { icon: Briefcase, label: "Deals", path: "/deals" },
         { icon: Ticket, label: "Tickets", path: "/tickets" },
         { icon: ShoppingBag, label: "Inventory", path: "/inventory" },
+        { icon: Shield, label: "Team", path: "/team" },
     ]
 
     const handleLogout = () => {

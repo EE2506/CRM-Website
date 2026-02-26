@@ -4,7 +4,7 @@ from app.utils.security import require_permission
 
 inventory_bp = Blueprint('inventory', __name__)
 
-@inventory_bp.route('/', methods=['GET'])
+@inventory_bp.route('', methods=['GET'])
 @require_permission('inventory.view')
 def get_inventory():
     query = Product.query.filter_by(company_id=g.current_user.company_id)
@@ -22,7 +22,7 @@ def get_inventory():
         } for p in products]
     }), 200
 
-@inventory_bp.route('/', methods=['POST'])
+@inventory_bp.route('', methods=['POST'])
 @require_permission('inventory.create')
 def create_product():
     data = request.get_json()

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, g
-from app.models import db, Sale, SaleItem, Product
+from app.models import db, Sale, SaleItem, Product, User, Role
 from app.utils.security import require_permission
 from sqlalchemy import func, extract
 from itsdangerous import URLSafeTimedSerializer
@@ -82,3 +82,104 @@ def generate_share_link():
             "expires_in": 3600 # 1 hour
         }
     }), 201
+
+# --- TEAM & USER MANAGEMENT ---
+
+@admin_bp.route('/users', methods=['GET'])
+@require_permission('admin.users.manage')
+def get_users():
+    users = User.query.filter_by(company_id=g.current_user.company_id).all()
+    return jsonify({
+        "success": True,
+        "data": [user.to_dict() for user in users]
+    }), 200
+
+@admin_bp.route('/users/<int:user_id>/approve', methods=['PUT'])
+@require_permission('admin.users.manage')
+def approve_user(user_id):
+    data = request.get_json() or {}
+    role_id = data.get('role_id')
+    
+    if not role_id:
+        return jsonify({"success": False, "error": {"message": "role_id is required"}}), 400
+        
+    user = User.query.filter_by(id=user_id, company_id=g.current_user.company_id).first()
+    if not user:
+        return jsonify({"success": False, "error": {"message": "User not found"}}), 404
+        
+    role = Role.query.filter_by(id=role_id, company_id=g.current_user.company_id).first()
+    if not role:
+        return jsonify({"success": False, "error": {"message": "Role not found"}}), 404
+        
+    user.role_id = role.id
+    user.status = 'active'
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "User approved successfully",
+        "data": user.to_dict()
+    }), 200
+
+@admin_bp.route('/users/<int:user_id>/role', methods=['PUT'])
+@require_permission('admin.users.manage')
+def change_user_role(user_id):
+    data = request.get_json() or {}
+    role_id = data.get('role_id')
+    
+    if not role_id:
+        return jsonify({"success": False, "error": {"message": "role_id is required"}}), 400
+        
+    user = User.query.filter_by(id=user_id, company_id=g.current_user.company_id).first()
+    if not user:
+        return jsonify({"success": False, "error": {"message": "User not found"}}), 404
+        
+    role = Role.query.filter_by(id=role_id, company_id=g.current_user.company_id).first()
+    if not role:
+        return jsonify({"success": False, "error": {"message": "Role not found"}}), 404
+        
+    user.role_id = role.id
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "User role updated successfully",
+        "data": user.to_dict()
+    }), 200
+
+@admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@require_permission('admin.users.manage')
+def delete_user(user_id):
+    user = User.query.filter_by(id=user_id, company_id=g.current_user.company_id).first()
+    if not user:
+        return jsonify({"success": False, "error": {"message": "User not found"}}), 404
+        
+    if user.id == g.current_user.id:
+        return jsonify({"success": False, "error": {"message": "Cannot delete yourself"}}), 400
+        
+    db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "User removed successfully"
+    }), 200
+
+@admin_bp.route('/roles', methods=['GET'])
+@require_permission('admin.users.manage')
+def get_roles():
+    roles = Role.query.filter_by(company_id=g.current_user.company_id).all()
+    return jsonify({
+        "success": True,
+        "data": [{"id": r.id, "name": r.name, "permissions": r.permissions} for r in roles]
+    }), 200
+
+@admin_bp.route('/company/invite-code', methods=['GET'])
+@require_permission('admin.users.manage')
+def get_invite_code():
+    from app.models import Company
+    company = Company.query.get(g.current_user.company_id)
+    return jsonify({
+        "success": True,
+        "data": {"invite_code": company.invite_code}
+    }), 200
